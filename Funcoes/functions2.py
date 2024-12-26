@@ -106,9 +106,9 @@ def cadastro(username, password):
 def mostrarProdutos():
     try:
         with sqlite3.connect("agapeshop.db") as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT nome_produto, descricao, preco, quantidade_estoque, categoria_id FROM produtos")
-            return [{"nome": row[0], "descricao": row[1], "preco": row[2], "quantidade_estoque": row[3], "categoria_id": row[4]} for row in cursor.fetchall()]
+             cursor = conn.cursor()
+             cursor.execute("SELECT nome_produto, descricao, preco, quantidade_estoque, categoria_id FROM produtos")
+             return [{"nome": row[0], "descricao": row[1], "preco": row[2], "quantidade_estoque": row[3], "categoria_id": row[4]} for row in cursor.fetchall()]
     except sqlite3.Error as e:
         print(f"Erro ao mostrar produtos: {e}")
         return []

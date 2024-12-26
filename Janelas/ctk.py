@@ -1,6 +1,6 @@
 import customtkinter as CTk
-
 from Funcoes.functions import validar_usuario , registrar_usuario , mostrarProdutos , insert
+from Funcoes.functions2 import inserirProduto
 
 
 CTk.set_appearance_mode("dark")
@@ -25,6 +25,8 @@ def login_window():
         window.destroy()
         register_window()
 
+  
+
     # Configuração da janela de login
     window = CTk.CTk()
     window.title("Login - Agape Shop")
@@ -41,6 +43,7 @@ def login_window():
 
     CTk.CTkButton(window, text="Login", width=300, command=login_action).pack(pady=10)
     CTk.CTkButton(window, text="Registrar", width=300, command=register_action).pack(pady=10)
+    
 
     window.mainloop()
 
@@ -86,6 +89,10 @@ def menu_principal(username):
         menu.destroy()
         adicionar_produto()
 
+    def open_remover_produto():
+        menu.destroy()
+        remover_produto()
+
     menu = CTk.CTk()
     menu.title("Menu Principal - Agape Shop")
     menu.geometry("400x400")
@@ -93,6 +100,7 @@ def menu_principal(username):
     CTk.CTkLabel(menu, text=f"Bem-vindo, {username}!", font=("Arial", 20, "bold")).pack(pady=20)
     CTk.CTkButton(menu, text="Consultar Estoque", width=300, command=open_consulta_estoque).pack(pady=10)
     CTk.CTkButton(menu, text="Adicionar Produto", width=300, command=open_add_produto).pack(pady=10)
+    CTk.CTkButton(menu, text="Remover Produto", width=300, command=lambda: [menu.destroy(), remover_produto()]).pack(pady=10)
     CTk.CTkButton(menu, text="Sair", width=300, command=menu.destroy).pack(pady=20)
 
     menu.mainloop()
@@ -160,7 +168,28 @@ def adicionar_produto():
     categoria_entry = CTk.CTkEntry(window, width=300)
     categoria_entry.pack(pady=10)
 
-    CTk.CTkButton(window, text="Salvar", width=300, command=save_product).pack(pady=10)
+    CTk.CTkButton(window, text="Salvar", width=300, command=inserirProduto(nome_entry,descricao_entry,preco_entry,quantidade_entry,categoria_entry )).pack(pady=10)
     CTk.CTkButton(window, text="Cancelar", width=300, command=lambda: [window.destroy(), menu_principal("Usuário")]).pack(pady=10)
 
     window.mainloop()
+
+
+
+def remover_produto():
+    def delete_product():
+        produto_id = produto_id_entry.get()
+        delete_product(produto_id)
+        CTk.CTkMessagebox(title ="Information", message = "Produto Removido!")
+        window.destroy()
+        menu_principal("Usuário")
+
+        window = CTk.CTk() 
+        window.title("Remover Produto")
+        window.geometry("400x400")
+        CTk.CTkLabel(window, text="Remover Produto", font=("Arial", 20, "bold")).pack(pady=10)
+        CTk.CTkLabel(window, text="ID do Produto").pack(pady=10)
+        produto_id_entry = CTk.CTkEntry(window, width=300)
+        produto_id_entry.pack(pady=10)
+        CTk.CTkButton(window, text="Remover", width=300, command=delete_product).pack(pady=10)
+        CTk.CTkButton(window, text="Cancelar", width=300, command=lambda: [window.destroy(), menu_principal("Usuário")]).pack(pady=10)
+        window.mainloop()
