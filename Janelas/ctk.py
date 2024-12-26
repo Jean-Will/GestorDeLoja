@@ -1,5 +1,7 @@
 import customtkinter as CTk
-from Funcoes.functions import mostrarProdutos, insert, validar_usuario , registrar_usuario
+
+from Funcoes.functions import validar_usuario , registrar_usuario , mostrarProdutos , insert
+
 
 CTk.set_appearance_mode("dark")
 CTk.set_default_color_theme("blue")
