@@ -4,10 +4,11 @@ import pwinput
 from time import sleep
 
 
-def iniciaDB():
+import sqlite3
 
+def iniciaDB():
     try:
-        with sqlite3.connect("agapeshop.db") as conn:  
+        with sqlite3.connect("agapeshop.db") as conn:
             cursor = conn.cursor()
 
             # Criação da tabela de usuários
@@ -42,8 +43,6 @@ def iniciaDB():
             ])
             print("Categorias inseridas com sucesso.")
 
-
-            
             # Criação da tabela de produtos
             cursor.execute(''' 
                 CREATE TABLE IF NOT EXISTS produtos (
@@ -62,19 +61,50 @@ def iniciaDB():
             cursor.execute(''' 
                 CREATE TABLE IF NOT EXISTS tipo_pagamento (
                     pagamento_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    metodo_pagamento VARCHAR(50) NOT NULL UNIQUE
+                    metodo_pagamento TEXT NOT NULL UNIQUE
                 ) 
             ''')
+            print("Tabela 'tipo_pagamento' criada com sucesso.")
+
+            # Inserção de métodos de pagamento
             cursor.executemany('''
                 INSERT OR IGNORE INTO tipo_pagamento (pagamento_id, metodo_pagamento) 
                 VALUES (?, ?)
             ''', [(1, 'Dinheiro'), (2, 'Multibanco'), (3, 'MB Way')])
-            print("Tabela 'tipo_pagamento' criada e métodos inseridos.")
+            print("Métodos de pagamento inseridos com sucesso.")
+
+            # Criação da tabela de vendas
+            cursor.execute(''' 
+                CREATE TABLE IF NOT EXISTS vendas (
+                    venda_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    total REAL NOT NULL CHECK(total >= 0),
+                    pagamento_id INTEGER NOT NULL,
+                    data_venda TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (pagamento_id) REFERENCES tipo_pagamento(pagamento_id)
+                ) 
+            ''')
+            print("Tabela 'vendas' criada com sucesso.")
+
+            # Criação da tabela de itens de venda
+            cursor.execute(''' 
+                CREATE TABLE IF NOT EXISTS itens_venda (
+                    item_venda_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    venda_id INTEGER NOT NULL,
+                    produto_id INTEGER NOT NULL,
+                    quantidade INTEGER NOT NULL CHECK(quantidade > 0),
+                    preco_unitario REAL NOT NULL CHECK(preco_unitario >= 0),
+                    FOREIGN KEY (venda_id) REFERENCES vendas(venda_id),
+                    FOREIGN KEY (produto_id) REFERENCES produtos(produto_id)
+                ) 
+            ''')
+            print("Tabela 'itens_venda' criada com sucesso.")
 
             conn.commit()
             print("Base de dados criada com sucesso!")
+
     except sqlite3.Error as e:
         print(f"Erro ao criar banco de dados: {e}")
+
 
 
 

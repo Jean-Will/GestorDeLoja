@@ -102,6 +102,7 @@ def menu_principal(username):
     CTk.CTkButton(menu, text="Consultar Estoque", width=300, command=open_consulta_estoque).pack(pady=10)
     CTk.CTkButton(menu, text="Adicionar Produto", width=300, command=open_add_produto).pack(pady=10)
     CTk.CTkButton(menu, text="Remover Produto", width=300, command=lambda: [menu.destroy(), remover_produto()]).pack(pady=10)
+    CTk.CTkButton(menu, text="Vendas", width=300,command=janela_vendas).pack(pady=10)
     CTk.CTkButton(menu, text="Sair", width=300, command=menu.destroy).pack(pady=20)
 
     menu.mainloop()
@@ -232,3 +233,99 @@ def remover_produto():
     CTk.CTkButton(window, text="Cancelar", width=300, command=lambda: [window.destroy(), menu_principal("Usuário")]).pack(pady=10)
 
     window.mainloop()
+
+def janela_vendas():
+    carrinho = []  # Lista para armazenar os produtos adicionados ao carrinho
+    forma_pagamento_var = CTk.StringVar(value="Dinheiro")  # Valor padrão para a forma de pagamento
+
+    def adicionar_ao_carrinho():
+        try:
+            produto_id = int(produto_id_entry.get())
+            quantidade = int(quantidade_entry.get())
+
+            with sqlite3.connect("agapeshop.db") as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT produto_id, nome_produto, preco, quantidade_estoque FROM produtos WHERE produto_id = ?", (produto_id,))
+                produto = cursor.fetchone()
+
+                if produto:
+                    nome, preco, estoque = produto[1], produto[2], produto[3]
+                    if quantidade > estoque:
+                        messagebox.showerror("Erro", "Quantidade insuficiente no estoque!")
+                        return
+
+                    carrinho.append({"id": produto_id, "nome": nome, "quantidade": quantidade, "preco": preco})
+                    atualizar_carrinho()
+                else:
+                    messagebox.showerror("Erro", "Produto não encontrado.")
+        except ValueError:
+            messagebox.showerror("Erro", "Por favor, insira valores válidos para ID e quantidade.")
+
+    def atualizar_carrinho():
+        for widget in carrinho_frame.winfo_children():
+            widget.destroy()
+
+        total = 0
+        for item in carrinho:
+            total += item["quantidade"] * item["preco"]
+            CTk.CTkLabel(carrinho_frame, text=f"{item['nome']} - {item['quantidade']} x €{item['preco']}").pack()
+
+        CTk.CTkLabel(carrinho_frame, text=f"Total: €{total:.2f}", font=("Arial", 14, "bold")).pack()
+
+    def finalizar_venda():
+        if not carrinho:
+            messagebox.showerror("Erro", "O carrinho está vazio!")
+            return
+
+        forma_pagamento = forma_pagamento_var.get()
+        try:
+            with sqlite3.connect("agapeshop.db") as conn:
+                cursor = conn.cursor()
+                for item in carrinho:
+                    cursor.execute("UPDATE produtos SET quantidade_estoque = quantidade_estoque - ? WHERE produto_id = ?", (item["quantidade"], item["id"]))
+                
+                total = sum(item["quantidade"] * item["preco"] for item in carrinho)
+                cursor.execute("INSERT INTO vendas (total, forma_pagamento) VALUES (?, ?)", (total, forma_pagamento))
+                conn.commit()
+
+            messagebox.showinfo("Sucesso", "Venda finalizada com sucesso!")
+            carrinho.clear()
+            atualizar_carrinho()
+        except sqlite3.Error as e:
+            messagebox.showerror("Erro", f"Erro ao finalizar venda: {e}")
+
+    # Janela principal
+    window = CTk.CTk()
+    window.title("Vendas")
+    window.geometry("600x700")
+
+    # Seleção de produto
+    CTk.CTkLabel(window, text="ID do Produto").pack(pady=5)
+    produto_id_entry = CTk.CTkEntry(window, width=300)
+    produto_id_entry.pack(pady=5)
+
+    CTk.CTkLabel(window, text="Quantidade").pack(pady=5)
+    quantidade_entry = CTk.CTkEntry(window, width=300)
+    quantidade_entry.pack(pady=5)
+
+    CTk.CTkButton(window, text="Adicionar ao Carrinho", command=adicionar_ao_carrinho).pack(pady=10)
+
+    # Carrinho
+    CTk.CTkLabel(window, text="Carrinho de Compras", font=("Arial", 16, "bold")).pack(pady=10)
+    carrinho_frame = CTk.CTkScrollableFrame(window, width=500, height=200)
+    carrinho_frame.pack(pady=10)
+
+    # Seleção de forma de pagamento
+    CTk.CTkLabel(window, text="Forma de Pagamento").pack(pady=10)
+    CTk.CTkRadioButton(window, text="Dinheiro", variable=forma_pagamento_var, value="Dinheiro").pack()
+    CTk.CTkRadioButton(window, text="Multibanco", variable=forma_pagamento_var, value="Multibanco").pack()
+    CTk.CTkRadioButton(window, text="Mbway", variable=forma_pagamento_var, value="Mbway").pack()
+
+    # Botões
+    CTk.CTkButton(window, text="Finalizar Venda", command=finalizar_venda).pack(pady=10)
+    CTk.CTkButton(window, text="Cancelar", command=window.destroy).pack(pady=10)
+
+    window.mainloop()
+
+
+
