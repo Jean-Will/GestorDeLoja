@@ -66,12 +66,14 @@ def iniciaDB():
             ''')
             print("Tabela 'tipo_pagamento' criada com sucesso.")
 
+
             # Inserção de métodos de pagamento
             cursor.executemany('''
                 INSERT OR IGNORE INTO tipo_pagamento (pagamento_id, metodo_pagamento) 
                 VALUES (?, ?)
             ''', [(1, 'Dinheiro'), (2, 'Multibanco'), (3, 'MB Way')])
             print("Métodos de pagamento inseridos com sucesso.")
+            
 
             # Criação da tabela de vendas
             cursor.execute(''' 
@@ -188,52 +190,6 @@ def cadastro():
 
 
 
-# Menu para o usuário inserir produtos
-def menu():
-    while True:
-        print("1. Inserir Produto")
-        print("2. Alterar Produto")
-        print("3. Mostrar Produtos")
-        print("4. Apagar Produto")
-        print("5. Sair")
-        
-        escolha = input("Escolha uma opção: ").strip()
-
-        if escolha == '1':
-            print("Categorias disponíveis:")
-            print("1. Livraria")
-            print("2. Roupas")
-            print("3. Acessórios")
-            cat_opcao = input("Escolha uma categoria (1, 2, 3): ").strip()
-            
-            # Mapeamento direto do número para o ID da categoria
-            categoria_id = int(cat_opcao) if cat_opcao in ['1', '2', '3'] else None
-
-            if categoria_id:
-                nome_produto = input("Nome do Produto: ").strip().title()
-                descricao_produto = input("Descrição do Produto: ").strip()
-                preco = float(input("Preço do Produto: ").strip())
-                quantidade_estoque = int(input("Quantidade em Estoque: ").strip())
-                
-                insert(nome_produto, descricao_produto, preco, quantidade_estoque, categoria_id)
-            else:
-                print("Categoria inválida. Tente novamente.")
-
-        elif escolha == '2':
-            update()
-        elif escolha == '3':
-            mostrarProdutos()
-            print()
-        elif escolha == '4':
-            delete()
-        elif escolha == '5':
-            print("saindo da Agape Shop ...\n")
-            break
-        else:
-            print("Opção inválida, tente novamente.\n")
-    print()
-
-   
 
 
 # Insere uma categoria ** e para selecionar a categoria e nao inserir pois ja deifini as categorias na criacao 
@@ -258,24 +214,6 @@ def insertCategoria(categoria):
           
         
 
-# Insere um novo produto
-def insert(nome_produto, descricao_produto, preco, quantidade_estoque, categoria_id):
-    try:
-        with sqlite3.connect('agapeshop.db') as conn:  
-            cursor = conn.cursor()
-            
-            cursor.execute('''  
-                INSERT INTO produtos(nome_produto, descricao_produto, preco, quantidade_estoque, categoria_id)
-                VALUES (?, ?, ?, ?, ?) 
-            ''', (nome_produto, descricao_produto, preco, quantidade_estoque, categoria_id))
-            conn.commit()
-
-            print("Novo produto inserido com sucesso!")
-    except sqlite3.Error as e:
-        print(f"Erro ao inserir produto: {e}")
-
-
-#### inserir produto esta usando essa funcao aqui de baixo 
 # Função para inserir um produto
 def inserirProduto(nome_produto, descricao_produto, preco, quantidade_estoque, categoria_id):
     try:
@@ -293,7 +231,7 @@ def inserirProduto(nome_produto, descricao_produto, preco, quantidade_estoque, c
 
 
 
-# Atualiza um produto
+# Atualiza um produto NAO APLICADA ATE O MOMENTO
 def update():
     try:
         with sqlite3.connect('agapeshop.db') as conn:
@@ -406,7 +344,7 @@ def validar_usuario(username, password):
         return cursor.fetchone() is not None
 
 
-# Função para buscar produtos por categoria
+# Função para buscar produtos por categoria NAO APLICADA ATE O MOMENTO
 def buscarPorCategoria(categoria_id):
     """
     Retorna produtos de uma categoria específica.

@@ -2,6 +2,8 @@ import customtkinter as CTk
 from Funcoes.functions import validar_usuario , registrar_usuario , mostrarProdutos,inserirProduto
 import sqlite3
 from tkinter import messagebox
+from fpdf import FPDF
+from tkinter import filedialog
 
 
 CTk.set_appearance_mode("dark")
@@ -49,7 +51,7 @@ def login_window():
     window.mainloop()
 
 
-# Janela de registro
+# Janela de Login e registro
 def register_window():
     def save_user():
         username = username_entry.get()
@@ -72,7 +74,6 @@ def register_window():
     password_entry = CTk.CTkEntry(window, show="*", width=300)
     password_entry.pack(pady=10)
 
-    #CTk.CTkButton(window, text="Registrar", width=300, command=save_user).pack(pady=20) ESSA FUNCIONA SO NAO FECHA A JANELA
     CTk.CTkButton(window, text="Registrar", width=300, command=save_user).pack(pady=20)
     CTk.CTkButton(window, text="Voltar", width=300, command=lambda: [window.destroy(), login_window()]).pack(pady=10)
 
@@ -103,6 +104,7 @@ def menu_principal(username):
     CTk.CTkButton(menu, text="Adicionar Produto", width=300, command=open_add_produto).pack(pady=10)
     CTk.CTkButton(menu, text="Remover Produto", width=300, command=lambda: [menu.destroy(), remover_produto()]).pack(pady=10)
     CTk.CTkButton(menu, text="Vendas", width=300,command=janela_vendas).pack(pady=10)
+    CTk.CTkButton(menu, text="Exportar Relatório", width=300,command=lambda: exportar_relatorio_pdf(relatorio_diario, "Relatorio Diario de Vendas")).pack(pady=10)
     CTk.CTkButton(menu, text="Sair", width=300, command=menu.destroy).pack(pady=20)
 
     menu.mainloop()
@@ -180,7 +182,7 @@ def adicionar_produto():
 
     window.mainloop()
 
-
+#deleta produto na base de dados
 def delete_product_from_db(produto_id):
     """Função para deletar um produto do banco de dados usando o ID."""
     try:
@@ -200,7 +202,7 @@ def delete_product_from_db(produto_id):
         print(f"Erro ao deletar produto: {e}")
         return False
 
-
+# Remover produto pela interface
 def remover_produto():
     def delete_product():
         try:
@@ -234,6 +236,7 @@ def remover_produto():
 
     window.mainloop()
 
+# janela relacionado a vendas
 def janela_vendas():
     carrinho = []  # Lista para armazenar os produtos adicionados ao carrinho
     forma_pagamento_var = CTk.StringVar(value="Dinheiro")  # Valor padrão para a forma de pagamento
@@ -278,21 +281,36 @@ def janela_vendas():
             return
 
         forma_pagamento = forma_pagamento_var.get()
+
         try:
             with sqlite3.connect("agapeshop.db") as conn:
                 cursor = conn.cursor()
+
+            # Obter o ID da forma de pagamento baseado no nome
+                cursor.execute("SELECT pagamento_id FROM tipo_pagamento WHERE metodo_pagamento = ?", (forma_pagamento,))
+                pagamento_id = cursor.fetchone()
+
+                if not pagamento_id:
+                    messagebox.showerror("Erro", "Forma de pagamento inválida!")
+                    return
+
+                pagamento_id = pagamento_id[0]  # Obtem o ID real da tupla retornada
+
+            # Atualizar o estoque para cada produto no carrinho
                 for item in carrinho:
                     cursor.execute("UPDATE produtos SET quantidade_estoque = quantidade_estoque - ? WHERE produto_id = ?", (item["quantidade"], item["id"]))
-                
-                total = sum(item["quantidade"] * item["preco"] for item in carrinho)
-                cursor.execute("INSERT INTO vendas (total, forma_pagamento) VALUES (?, ?)", (total, forma_pagamento))
-                conn.commit()
 
-            messagebox.showinfo("Sucesso", "Venda finalizada com sucesso!")
-            carrinho.clear()
-            atualizar_carrinho()
+            # Inserir a venda na tabela de vendas
+                total = sum(item["quantidade"] * item["preco"] for item in carrinho)
+                cursor.execute("INSERT INTO vendas (total, pagamento_id) VALUES (?, ?)", (total, pagamento_id))
+
+                conn.commit()
+                messagebox.showinfo("Sucesso", "Venda finalizada com sucesso!")
+                carrinho.clear()
+                atualizar_carrinho()
         except sqlite3.Error as e:
             messagebox.showerror("Erro", f"Erro ao finalizar venda: {e}")
+
 
     # Janela principal
     window = CTk.CTk()
@@ -319,7 +337,7 @@ def janela_vendas():
     CTk.CTkLabel(window, text="Forma de Pagamento").pack(pady=10)
     CTk.CTkRadioButton(window, text="Dinheiro", variable=forma_pagamento_var, value="Dinheiro").pack()
     CTk.CTkRadioButton(window, text="Multibanco", variable=forma_pagamento_var, value="Multibanco").pack()
-    CTk.CTkRadioButton(window, text="Mbway", variable=forma_pagamento_var, value="Mbway").pack()
+    CTk.CTkRadioButton(window, text="Mbway", variable=forma_pagamento_var, value="Mb Way").pack()
 
     # Botões
     CTk.CTkButton(window, text="Finalizar Venda", command=finalizar_venda).pack(pady=10)
@@ -328,4 +346,92 @@ def janela_vendas():
     window.mainloop()
 
 
+def exportar_relatorio_pdf(relatorio_funcao, titulo="Relatório de Vendas"):
+    relatorio = relatorio_funcao()
 
+    if not relatorio:
+        messagebox.showerror("Erro", "Não há dados para exportar.")
+        return
+    
+        # Escolher o local para salvar o PDF
+    arquivo = filedialog.asksaveasfilename(
+        defaultextension=".pdf",
+        filetypes=[("PDF Files", "*.pdf")],
+        title="Salvar Relatório como"
+    )
+
+    if not arquivo:  # Se o usuário cancelar
+        return
+    
+    #incialização do pdf
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    #Titulo do relatório
+    pdf.set_font("Arial", size=16, style="B")
+    pdf.cell(200, 10, txt=titulo, ln=True, align="C")
+
+    #Espaço
+    pdf.ln(10)
+
+    # Cabeçalhos do Relatório
+    pdf.set_font("Arial", style="B", size=12)
+    pdf.cell(30, 10, "ID Venda", border=1)
+    pdf.cell(40, 10, "Produto", border=1)
+    pdf.cell(30, 10, "Quantidade", border=1)
+    pdf.cell(30, 10, "Preço Unitário", border=1)
+    pdf.cell(30, 10, "Total", border=1)
+    pdf.cell(30, 10, "Pagamento", border=1)
+    pdf.ln()
+
+    # Dados do Relatório
+    pdf.set_font("Arial", size=12)
+    for venda in relatorio:
+        venda_id, total, metodo_pagamento, data_venda, nome_produto, quantidade, preco_unitario = venda
+        pdf.cell(30, 10, str(venda_id), border=1)
+        pdf.cell(40, 10, nome_produto, border=1)
+        pdf.cell(30, 10, str(quantidade), border=1)
+        pdf.cell(30, 10, f"€{preco_unitario:.2f}", border=1)
+        pdf.cell(30, 10, f"€{quantidade * preco_unitario:.2f}", border=1)
+        pdf.cell(30, 10, metodo_pagamento, border=1)
+        pdf.ln()
+
+        #Total da Geral
+        pdf.ln(10)
+        total_geral = sum(venda[5] * venda[6] for venda in relatorio)
+        pdf.cell(200, 10, txt=f"Total Geral: €{total_geral:.2f}", ln=True, align="R")
+
+        # salva o arquivo PDF
+        pdf.output("relatorio_vendas.pdf")
+        messagebox.showinfo("Sucesso", "Relatório exportado com sucesso!")
+
+        #exportar o relatório
+        exportar_relatorio_pdf(relatorio_diario, "Relatório de Vendas")
+
+
+
+def relatorio_diario():
+    """
+    Retorna um relatório com todas as vendas realizadas no dia atual,
+    incluindo tipo de pagamento.
+    """
+    try:
+        with sqlite3.connect("agapeshop.db") as conn:
+            cursor = conn.cursor()
+            # Consulta ajustada para incluir o tipo de pagamento
+            query = '''
+                SELECT v.venda_id, v.total, tp.metodo_pagamento, v.data_venda,
+                       p.nome_produto, iv.quantidade, iv.preco_unitario
+                FROM vendas v
+                JOIN itens_venda iv ON v.venda_id = iv.venda_id
+                JOIN produtos p ON iv.produto_id = p.produto_id
+                JOIN tipo_pagamento tp ON v.pagamento_id = tp.pagamento_id
+                WHERE DATE(v.data_venda) = DATE('now')
+                ORDER BY v.data_venda DESC
+            '''
+            cursor.execute(query)
+            return cursor.fetchall()
+    except sqlite3.Error as e:
+        print(f"Erro ao gerar relatório diário: {e}")
+        return []
