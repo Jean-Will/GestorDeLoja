@@ -1,6 +1,7 @@
 import customtkinter as CTk
-from Funcoes.functions import validar_usuario , registrar_usuario , mostrarProdutos , insert
-from Funcoes.functions2 import inserirProduto
+from Funcoes.functions import validar_usuario , registrar_usuario , mostrarProdutos,inserirProduto
+import sqlite3
+from tkinter import messagebox
 
 
 CTk.set_appearance_mode("dark")
@@ -19,7 +20,7 @@ def login_window():
             window.destroy()
             menu_principal(username)
         else:
-            CTk.CTkMessagebox.show_error("Erro", "Usuário ou senha incorretos!")
+            messagebox.showerror("Erro", "Usuário ou senha incorretos!")
 
     def register_action():
         window.destroy()
@@ -120,8 +121,13 @@ def consultar_estoque():
 
     frame = CTk.CTkScrollableFrame(window, width=550, height=300)
     frame.pack(pady=20)
-    for produto in produtos:
-        CTk.CTkLabel(frame, text=f"{produto[1]} - {produto[3]} em estoque").pack(pady=5)
+
+    if not produtos:
+        CTk.CTkLabel(frame, text="Nenhum produto encontrado.").pack(pady=10)
+    else:
+        for produto in produtos:
+            id ,nome , descricao , preco , quantidade , categoria = produto
+            CTk.CTkLabel(frame, text=f"ID Produto: {id} \nNome: {nome}\nDescrição:{descricao}\nPreço:€{preco:.2f}\nEstoque:{quantidade}\nCategoria ID: {categoria}", justify="left",font=("Arial",12)).pack(pady=10)
 
     CTk.CTkButton(window, text="Voltar", width=300, command=voltar).pack(pady=10)
 
@@ -137,8 +143,8 @@ def adicionar_produto():
         quantidade = int(quantidade_entry.get())
         categoria = int(categoria_entry.get())
 
-        insert(nome, descricao, preco, quantidade, categoria)
-        CTk.CTkMessagebox.show_info("Sucesso", "Produto Adicionado!")
+        inserirProduto(nome, descricao, preco, quantidade, categoria)
+        messagebox.showinfo("Sucesso", "Produto Adicionado!")
         window.destroy()
         menu_principal("Usuário")
 
@@ -168,28 +174,61 @@ def adicionar_produto():
     categoria_entry = CTk.CTkEntry(window, width=300)
     categoria_entry.pack(pady=10)
 
-    CTk.CTkButton(window, text="Salvar", width=300, command=inserirProduto(nome_entry,descricao_entry,preco_entry,quantidade_entry,categoria_entry )).pack(pady=10)
+    CTk.CTkButton(window, text="Salvar", width=300, command=lambda: save_product()).pack(pady=10)
     CTk.CTkButton(window, text="Cancelar", width=300, command=lambda: [window.destroy(), menu_principal("Usuário")]).pack(pady=10)
 
     window.mainloop()
 
 
+def delete_product_from_db(produto_id):
+    """Função para deletar um produto do banco de dados usando o ID."""
+    try:
+        with sqlite3.connect('agapeshop.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM produtos WHERE produto_id = ?", (produto_id,))
+            produto = cursor.fetchone()
+
+            if produto:
+                cursor.execute("DELETE FROM produtos WHERE produto_id = ?", (produto_id,))
+                conn.commit()
+                return True  # Produto deletado com sucesso
+            else:
+                print(f"Nenhum produto encontrado com o ID {produto_id}.")
+                return False  # Produto não encontrado
+    except sqlite3.Error as e:
+        print(f"Erro ao deletar produto: {e}")
+        return False
+
 
 def remover_produto():
     def delete_product():
-        produto_id = produto_id_entry.get()
-        delete_product(produto_id)
-        CTk.CTkMessagebox(title ="Information", message = "Produto Removido!")
-        window.destroy()
-        menu_principal("Usuário")
+        try:
+            produto_id = int(produto_id_entry.get())  # Valida se o ID é numérico
+        except ValueError:
+            messagebox.showerror("Erro", "Por favor, insira um ID válido!")
+            return
 
-        window = CTk.CTk() 
-        window.title("Remover Produto")
-        window.geometry("400x400")
-        CTk.CTkLabel(window, text="Remover Produto", font=("Arial", 20, "bold")).pack(pady=10)
-        CTk.CTkLabel(window, text="ID do Produto").pack(pady=10)
-        produto_id_entry = CTk.CTkEntry(window, width=300)
-        produto_id_entry.pack(pady=10)
-        CTk.CTkButton(window, text="Remover", width=300, command=delete_product).pack(pady=10)
-        CTk.CTkButton(window, text="Cancelar", width=300, command=lambda: [window.destroy(), menu_principal("Usuário")]).pack(pady=10)
-        window.mainloop()
+        # Tenta deletar o produto do banco de dados
+        if delete_product_from_db(produto_id):
+            messagebox.showinfo("Sucesso", f"Produto com ID {produto_id} removido!")
+            window.destroy()
+            menu_principal("Usuário")
+        else:
+            messagebox.showerror("Erro", f"Nenhum produto encontrado com o ID {produto_id}.")
+
+    # Criar a janela para remover produtos
+    window = CTk.CTk()
+    window.title("Remover Produto")
+    window.geometry("400x400")
+
+    # Título e entrada
+    CTk.CTkLabel(window, text="Remover Produto", font=("Arial", 20, "bold")).pack(pady=10)
+    CTk.CTkLabel(window, text="ID do Produto").pack(pady=10)
+    produto_id_entry = CTk.CTkEntry(window, width=300)
+    produto_id_entry.pack(pady=10)
+
+    # Botões
+    CTk.CTkButton(window, text="Remover", width=300, command=delete_product).pack(pady=10)
+    CTk.CTkButton(window, text="Cancelar", width=300, command=lambda: [window.destroy(), menu_principal("Usuário")]).pack(pady=10)
+
+    window.mainloop()

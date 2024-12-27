@@ -4,90 +4,77 @@ import pwinput
 from time import sleep
 
 
+def iniciaDB():
 
-# Cria a base de dados com a tabela se nao existir
-def iniciarDB():
-    with sqlite3.connect("agapeshop.db") as conn:  
-        cursor = conn.cursor()
-        
+    try:
+        with sqlite3.connect("agapeshop.db") as conn:  
+            cursor = conn.cursor()
 
-        #1 Tabela Usuario
-        cursor.execute(''' CREATE TABLE IF NOT EXISTS usuario (
-                       usuario_id INTEGER PRIMARY KEY AUTOINCREMENT ,
-                       nome VARCHAR(100),
-                       senha VARCHAR(50)) ''')
-        print("Tabela usuario criada com suceso ")
+            # Criação da tabela de usuários
+            cursor.execute(''' 
+                CREATE TABLE IF NOT EXISTS usuario (
+                    usuario_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username VARCHAR(100) NOT NULL UNIQUE,
+                    password VARCHAR(50) NOT NULL
+                ) 
+            ''')
+            print("Tabela 'usuario' criada com sucesso.")
 
+            # Criação da tabela de categorias
+            cursor.execute(''' 
+                CREATE TABLE IF NOT EXISTS categoria (
+                    categoria_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome_categoria VARCHAR(50) NOT NULL UNIQUE,
+                    descricao_categoria TEXT,
+                    ativo BOOLEAN DEFAULT 1
+                ) 
+            ''')
+            print("Tabela 'categoria' criada com sucesso.")
 
-        # 2 Categoria dos produtos      
-        cursor.execute(''' CREATE TABLE IF NOT EXISTS categoria (
-                        categoria_id INTEGER PRIMARY KEY AUTOINCREMENT,  
-                        livraria VARCHAR(50), 
-                        roupas  VARCHAR(50),
-                        acessorios VARCHAR(50) )''')
-        print("Tabela categoria Criada com Sucesso1 ")   ### MUDEI A CATEGORIA JA DEFININDO AS PARA TENTAr FAZER UM SELECT
-
-        #3 TABELA DE PRODUTOS
-        cursor.execute('''
-                        CREATE TABLE IF NOT EXISTS produtos(
-                        produto_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        nome_produto TEXT,
-                        descricao_produto VARCHAR(100),   
-                        preco DECIMAL,
-                        quantidade_estoque INTEGER,
-                        categoria_id INTEGER,
-                        FOREIGN KEY (categoria_id) REFERENCES categoria (categoria_id) )''')
-        print("Tabela Produtos para Agape Shop Criada com Sucesso")
-        
-
-        #4 Tabela de  Fatura
-        cursor.execute(''' CREATE TABLE IF NOT EXISTS fatura(
-                       fatura_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                       data_venda DATE,
-                       total_venda DECIMAL,
-                       usuario_id INTEGER,
-                       pagamento_id INTEGER,
-                       FOREIGN KEY (usuario_id) REFERENCES usuario (usuario_id),
-                       FOREIGN KEY (pagamento_id) REFERENCES tipo_pagamento (pagamento_id) )''')
-        print("Tabela Fatura Criada com sucesso ")
+            # Popula a tabela de categorias com valores iniciais
+            cursor.executemany('''
+                INSERT OR IGNORE INTO categoria (categoria_id, nome_categoria, descricao_categoria) 
+                VALUES (?, ?, ?)
+            ''', [
+                (1, 'Livraria', 'Produtos relacionados a livros, material escolar e papelaria'),
+                (2, 'Roupas', 'Vestuário em geral incluindo camisas, calças e vestidos'),
+                (3, 'Acessórios', 'Complementos como bolsas, cintos e bijuterias')
+            ])
+            print("Categorias inseridas com sucesso.")
 
 
-        #5 Tabela Itens da venda
-        cursor.execute(''' CREATE TABLE IF NOT EXISTS item_venda (
-                       item_venda_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                       quantidade_venda INTEGER,
-                       preco_unidade DECIMAL,
-                       fatura_id INTEGER,
-                       produto_id INTEGER,
-                       FOREIGN KEY (fatura_id) REFERENCES fatura (fatura_id),
-                       FOREIGN KEY (produto_id) REFERENCES produtos (produto_id) )''')
-        print("Tabela Item venda criada com sucesso ")
+            
+            # Criação da tabela de produtos
+            cursor.execute(''' 
+                CREATE TABLE IF NOT EXISTS produtos (
+                    produto_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome_produto TEXT NOT NULL,
+                    descricao_produto TEXT,
+                    preco REAL NOT NULL CHECK(preco >= 0),
+                    quantidade_estoque INTEGER NOT NULL CHECK(quantidade_estoque >= 0),
+                    categoria_id INTEGER NOT NULL,
+                    FOREIGN KEY (categoria_id) REFERENCES categoria(categoria_id)
+                ) 
+            ''')
+            print("Tabela 'produtos' criada com sucesso.")
 
+            # Criação da tabela de métodos de pagamento
+            cursor.execute(''' 
+                CREATE TABLE IF NOT EXISTS tipo_pagamento (
+                    pagamento_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    metodo_pagamento VARCHAR(50) NOT NULL UNIQUE
+                ) 
+            ''')
+            cursor.executemany('''
+                INSERT OR IGNORE INTO tipo_pagamento (pagamento_id, metodo_pagamento) 
+                VALUES (?, ?)
+            ''', [(1, 'Dinheiro'), (2, 'Multibanco'), (3, 'MB Way')])
+            print("Tabela 'tipo_pagamento' criada e métodos inseridos.")
 
-        #6 Tipo de Pagamento 
-        cursor.execute(''' CREATE TABLE IF NOT EXISTS tipo_pagamento (
-                            pagamento_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            metodo_pagamento VARCHAR(50) UNIQUE )''')
-        print("Tabela tipo de pagamento Criada com sucesso ")
-        
-        
-        cursor.execute(''' 
-                       INSERT OR IGNORE INTO categoria (categoria_id, livraria, roupas, acessorios)
-                       VALUES (1,'livraria', NULL , NULL),
-                       (2, NULL, 'Roupas', NULL),
-                       (3, NULL, NULL , 'Acessorios')''') 
-        
-        cursor.execute('''
-                       INSERT OR IGNORE INTO tipo_pagamento(metodo_pagamento)
-                       VALUES 
-                       ('Dinheiro'),
-                       ('Multibanco'),
-                       ('Mbway')''')    
-
-
-        conn.commit()
-        print("BASE DA DADOS CRAIADA COM SUCESSO ! ")
-
+            conn.commit()
+            print("Base de dados criada com sucesso!")
+    except sqlite3.Error as e:
+        print(f"Erro ao criar banco de dados: {e}")
 
 
 
@@ -258,6 +245,23 @@ def insert(nome_produto, descricao_produto, preco, quantidade_estoque, categoria
         print(f"Erro ao inserir produto: {e}")
 
 
+#### inserir produto esta usando essa funcao aqui de baixo 
+# Função para inserir um produto
+def inserirProduto(nome_produto, descricao_produto, preco, quantidade_estoque, categoria_id):
+    try:
+        with sqlite3.connect("agapeshop.db") as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO produtos (nome_produto, descricao_produto, preco, quantidade_estoque, categoria_id)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (nome_produto, descricao_produto, preco, quantidade_estoque, categoria_id))
+            conn.commit()
+    except sqlite3.Error as e:
+        print(f"Erro ao inserir produto: {e}")
+        raise
+        
+
+
 
 # Atualiza um produto
 def update():
@@ -283,33 +287,31 @@ def update():
 
 
 
-#Mostar produtos 
 
+#Mostar produtos 
 def mostrarProdutos():
     try:
         with sqlite3.connect('agapeshop.db') as conn:
             cursor = conn.cursor()
 
-            cursor.execute('SELECT * FROM produtos')
+            cursor.execute('SELECT produto_id, nome_produto, descricao_produto, preco, quantidade_estoque, categoria_id FROM produtos')
             produtos = cursor.fetchall()
 
             if not produtos:
                 print("Nenhum produto encontrado .")
-                return produtos
+                return []
             
-            for produto in produtos:
-                print(f"\nNome: {produto[1]} \nDescricão: {produto[2]} \nPreco: {produto[3]} €  \nEstoque: {produto[4]}\n ")  #0Categoria 1Nome do produto,3preco do produto, 4 estoque do produto
             return produtos
+            
+        for produto in produtos:
+            print(f"\nNome: {produto[1]} \nDescricão: {produto[2]} \nPreco: {produto[3]} €  \nEstoque: {produto[4]}\n ")  #0Categoria 1Nome do produto,3preco do produto, 4 estoque do produto
+        return []
 
     except sqlite3.Error as e:
         print(f"Erro ao mostrar produtos {e}")        
 
 
-
-
 #funcao para deletar um produto
-
-
 def delete():
     try:
         nome_produto = input("Digite o nome do produto que deseja deletar: ").strip().title()
@@ -373,37 +375,6 @@ def validar_usuario(username, password):
         cursor.execute("SELECT * FROM usuario WHERE username = ? AND password = ?", (username, password))
         return cursor.fetchone() is not None
 
-# Função para inserir um novo produto
-def insert(nome, descricao, preco, quantidade, categoria_id):
-    """
-    Adiciona um novo produto ao estoque.
-    """
-    try:
-        with sqlite3.connect("agapeshop.db") as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO produtos (nome_produto, descricao_produto, preco, quantidade_estoque, categoria_id)
-                VALUES (?, ?, ?, ?, ?)
-            """, (nome, descricao, preco, quantidade, categoria_id))
-            conn.commit()
-            return True
-    except sqlite3.Error as e:
-        print(f"Erro ao inserir produto: {e}")
-        return False
-
-# Função para exibir todos os produtos
-def mostrarProdutos():
-    """
-    Retorna todos os produtos do estoque.
-    """
-    with sqlite3.connect("agapeshop.db") as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT p.id, p.nome_produto, p.descricao_produto, p.preco, p.quantidade_estoque, c.nome_categoria
-            FROM produtos p
-            LEFT JOIN categoria c ON p.categoria_id = c.id
-        """)
-        return cursor.fetchall()
 
 # Função para buscar produtos por categoria
 def buscarPorCategoria(categoria_id):

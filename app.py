@@ -1,5 +1,5 @@
 from Janelas.ctk import start_application
-from Funcoes.functions2 import iniciaDB
+from Funcoes.functions import iniciaDB
 
 
 if __name__ == "__main__":
