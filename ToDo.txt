@@ -1,0 +1,3 @@
+1 . Finalizar venda com o pagamento por mbway da erro de Forma de pagamento invalida.
+2. Constultar e exportar relatorios de inventario nao esta funcionando, ( isso e importante para o cliente)
+3. Adicionar o Botal de Editar produtos.

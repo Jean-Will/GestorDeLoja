@@ -1,9 +1,8 @@
 import customtkinter as CTk
-from Funcoes.functions import validar_usuario , registrar_usuario , mostrarProdutos,inserirProduto
+from Funcoes.functions import validar_usuario , registrar_usuario , mostrarProdutos,inserirProduto, exportar_relatorio_pdf, relatorio_diario, consultar_inventario, exportar_inventario_excel
 import sqlite3
 from tkinter import messagebox
-from fpdf import FPDF
-from tkinter import filedialog
+
 
 
 CTk.set_appearance_mode("dark")
@@ -11,6 +10,7 @@ CTk.set_default_color_theme("blue")
 
 def start_application():
     login_window()
+
 
 # Função para abrir a janela de login
 def login_window():
@@ -57,7 +57,7 @@ def register_window():
         username = username_entry.get()
         password = password_entry.get()
         registrar_usuario(username, password)
-        CTk.CTkMessagebox.show_info("Sucesso", "Usuário registrado!")
+        messagebox.showinfo("Sucesso", "Usuário registrado!")
         window.destroy()
         login_window()
 
@@ -97,7 +97,7 @@ def menu_principal(username):
 
     menu = CTk.CTk()
     menu.title("Menu Principal - Agape Shop")
-    menu.geometry("400x400")
+    menu.geometry("700x600")
 
     CTk.CTkLabel(menu, text=f"Bem-vindo, {username}!", font=("Arial", 20, "bold")).pack(pady=20)
     CTk.CTkButton(menu, text="Consultar Estoque", width=300, command=open_consulta_estoque).pack(pady=10)
@@ -105,6 +105,8 @@ def menu_principal(username):
     CTk.CTkButton(menu, text="Remover Produto", width=300, command=lambda: [menu.destroy(), remover_produto()]).pack(pady=10)
     CTk.CTkButton(menu, text="Vendas", width=300,command=janela_vendas).pack(pady=10)
     CTk.CTkButton(menu, text="Exportar Relatório", width=300,command=lambda: exportar_relatorio_pdf(relatorio_diario, "Relatorio Diario de Vendas")).pack(pady=10)
+    CTk.CTkButton(menu, text="Mostrar Inventario", width=300,command=lambda: mostrar_inventario()).pack(pady=10)
+    CTk.CTkButton(menu, text="Exportar Inventario", width=300,command=lambda: exportar_inventario_excel()).pack(pady=10)
     CTk.CTkButton(menu, text="Sair", width=300, command=menu.destroy).pack(pady=20)
 
     menu.mainloop()
@@ -118,11 +120,11 @@ def consultar_estoque():
 
     window = CTk.CTk()
     window.title("Consultar Estoque")
-    window.geometry("600x400")
+    window.geometry("700x600")
 
     produtos = mostrarProdutos()
 
-    frame = CTk.CTkScrollableFrame(window, width=550, height=300)
+    frame = CTk.CTkScrollableFrame(window, width=750, height=500)
     frame.pack(pady=20)
 
     if not produtos:
@@ -153,7 +155,7 @@ def adicionar_produto():
 
     window = CTk.CTk()
     window.title("Adicionar Produto")
-    window.geometry("500x650")
+    window.geometry("700x700")
 
     CTk.CTkLabel(window, text="Adicionar Produto", font=("Arial", 20, "bold")).pack(pady=10)
 
@@ -337,7 +339,7 @@ def janela_vendas():
     CTk.CTkLabel(window, text="Forma de Pagamento").pack(pady=10)
     CTk.CTkRadioButton(window, text="Dinheiro", variable=forma_pagamento_var, value="Dinheiro").pack()
     CTk.CTkRadioButton(window, text="Multibanco", variable=forma_pagamento_var, value="Multibanco").pack()
-    CTk.CTkRadioButton(window, text="Mbway", variable=forma_pagamento_var, value="Mb Way").pack()
+    CTk.CTkRadioButton(window, text="Mb Way", variable=forma_pagamento_var, value="Mb Way").pack()
 
     # Botões
     CTk.CTkButton(window, text="Finalizar Venda", command=finalizar_venda).pack(pady=10)
@@ -346,92 +348,31 @@ def janela_vendas():
     window.mainloop()
 
 
-def exportar_relatorio_pdf(relatorio_funcao, titulo="Relatório de Vendas"):
-    relatorio = relatorio_funcao()
-
-    if not relatorio:
-        messagebox.showerror("Erro", "Não há dados para exportar.")
-        return
-    
-        # Escolher o local para salvar o PDF
-    arquivo = filedialog.asksaveasfilename(
-        defaultextension=".pdf",
-        filetypes=[("PDF Files", "*.pdf")],
-        title="Salvar Relatório como"
-    )
-
-    if not arquivo:  # Se o usuário cancelar
-        return
-    
-    #incialização do pdf
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-
-    #Titulo do relatório
-    pdf.set_font("Arial", size=16, style="B")
-    pdf.cell(200, 10, txt=titulo, ln=True, align="C")
-
-    #Espaço
-    pdf.ln(10)
-
-    # Cabeçalhos do Relatório
-    pdf.set_font("Arial", style="B", size=12)
-    pdf.cell(30, 10, "ID Venda", border=1)
-    pdf.cell(40, 10, "Produto", border=1)
-    pdf.cell(30, 10, "Quantidade", border=1)
-    pdf.cell(30, 10, "Preço Unitário", border=1)
-    pdf.cell(30, 10, "Total", border=1)
-    pdf.cell(30, 10, "Pagamento", border=1)
-    pdf.ln()
-
-    # Dados do Relatório
-    pdf.set_font("Arial", size=12)
-    for venda in relatorio:
-        venda_id, total, metodo_pagamento, data_venda, nome_produto, quantidade, preco_unitario = venda
-        pdf.cell(30, 10, str(venda_id), border=1)
-        pdf.cell(40, 10, nome_produto, border=1)
-        pdf.cell(30, 10, str(quantidade), border=1)
-        pdf.cell(30, 10, f"€{preco_unitario:.2f}", border=1)
-        pdf.cell(30, 10, f"€{quantidade * preco_unitario:.2f}", border=1)
-        pdf.cell(30, 10, metodo_pagamento, border=1)
-        pdf.ln()
-
-        #Total da Geral
-        pdf.ln(10)
-        total_geral = sum(venda[5] * venda[6] for venda in relatorio)
-        pdf.cell(200, 10, txt=f"Total Geral: €{total_geral:.2f}", ln=True, align="R")
-
-        # salva o arquivo PDF
-        pdf.output("relatorio_vendas.pdf")
-        messagebox.showinfo("Sucesso", "Relatório exportado com sucesso!")
-
-        #exportar o relatório
-        exportar_relatorio_pdf(relatorio_diario, "Relatório de Vendas")
-
-
-
-def relatorio_diario():
-    """
-    Retorna um relatório com todas as vendas realizadas no dia atual,
-    incluindo tipo de pagamento.
-    """
+def mostrar_inventario():
     try:
-        with sqlite3.connect("agapeshop.db") as conn:
-            cursor = conn.cursor()
-            # Consulta ajustada para incluir o tipo de pagamento
-            query = '''
-                SELECT v.venda_id, v.total, tp.metodo_pagamento, v.data_venda,
-                       p.nome_produto, iv.quantidade, iv.preco_unitario
-                FROM vendas v
-                JOIN itens_venda iv ON v.venda_id = iv.venda_id
-                JOIN produtos p ON iv.produto_id = p.produto_id
-                JOIN tipo_pagamento tp ON v.pagamento_id = tp.pagamento_id
-                WHERE DATE(v.data_venda) = DATE('now')
-                ORDER BY v.data_venda DESC
-            '''
-            cursor.execute(query)
-            return cursor.fetchall()
-    except sqlite3.Error as e:
-        print(f"Erro ao gerar relatório diário: {e}")
-        return []
+        inventario = consultar_inventario()
+        
+        if not inventario:
+            messagebox.showinfo("Inventário", "Não há dados no inventário.")
+            return
+
+        window = CTk.CTk()
+        window.title("Inventário")
+        window.geometry("700x500")
+
+        frame = CTk.CTkScrollableFrame(window, width=650, height=400)
+        frame.pack(pady=20)
+
+        # Cabeçalhos
+        CTk.CTkLabel(frame, text="ID | Produto | Quantidade | Tipo | Data | Observação", font=("Arial", 14, "bold")).pack(pady=5)
+
+        # Dados do inventário
+        for row in inventario:
+            CTk.CTkLabel(frame, text=f"{row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]}").pack(pady=5)
+
+        CTk.CTkButton(window, text="Fechar", command=window.destroy).pack(pady=10)
+
+        window.mainloop()
+
+    except Exception as e:
+        messagebox.showerror("Erro",f"Erro ao carregar o inventário:{e}     ")

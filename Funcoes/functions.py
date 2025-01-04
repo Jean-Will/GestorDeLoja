@@ -2,7 +2,9 @@ import sqlite3
 
 import pwinput
 from time import sleep
-
+from fpdf import FPDF
+from openpyxl import Workbook
+from tkinter import filedialog, messagebox
 
 import sqlite3
 
@@ -71,7 +73,7 @@ def iniciaDB():
             cursor.executemany('''
                 INSERT OR IGNORE INTO tipo_pagamento (pagamento_id, metodo_pagamento) 
                 VALUES (?, ?)
-            ''', [(1, 'Dinheiro'), (2, 'Multibanco'), (3, 'MB Way')])
+            ''', [(0, 'Dinheiro'), (1, 'Multibanco'), (2, 'MB Way')])
             print("Métodos de pagamento inseridos com sucesso.")
             
 
@@ -89,7 +91,7 @@ def iniciaDB():
 
             # Criação da tabela de itens de venda
             cursor.execute(''' 
-                CREATE TABLE IF NOT EXISTS itens_venda (
+                    CREATE TABLE IF NOT EXISTS itens_venda (
                     item_venda_id INTEGER PRIMARY KEY AUTOINCREMENT,
                     venda_id INTEGER NOT NULL,
                     produto_id INTEGER NOT NULL,
@@ -101,11 +103,31 @@ def iniciaDB():
             ''')
             print("Tabela 'itens_venda' criada com sucesso.")
 
+
+
+
+            # Criação da tabela de inventário   
+            cursor.execute('''  
+                    CREATE TABLE IF NOT EXISTS  inventario (
+                           inventario_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                           produto_id INTEGER NOT NULL,
+                           quantidade INTEGER NOT NULL,
+                           tipo_movimentacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                           data_movimentacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                           observacao TEXT, 
+                           FOREIGN KEY (produto_id) REFERENCES produtos(produto_id)
+                    )
+         ''')
+            print("Tabela 'inventario' criada com sucesso.")
+
+
             conn.commit()
             print("Base de dados criada com sucesso!")
 
     except sqlite3.Error as e:
         print(f"Erro ao criar banco de dados: {e}")
+
+        
 
 
 
@@ -269,11 +291,11 @@ def mostrarProdutos():
                 print("Nenhum produto encontrado .")
                 return []
             
-            return produtos
+            #return produtos
             
         for produto in produtos:
             print(f"\nNome: {produto[1]} \nDescricão: {produto[2]} \nPreco: {produto[3]} €  \nEstoque: {produto[4]}\n ")  #0Categoria 1Nome do produto,3preco do produto, 4 estoque do produto
-        return []
+        return produtos
 
     except sqlite3.Error as e:
         print(f"Erro ao mostrar produtos {e}")        
@@ -357,3 +379,154 @@ def buscarPorCategoria(categoria_id):
         """, (categoria_id,))
         return cursor.fetchall()    
                     
+
+def exportar_relatorio_pdf(relatorio_funcao, titulo="Relatório de Vendas"):
+    relatorio = relatorio_funcao()
+
+    if not relatorio:
+        messagebox.showerror("Erro", "Não há dados para exportar.")
+        return
+    
+        # Escolher o local para salvar o PDF
+    arquivo = filedialog.asksaveasfilename(
+        defaultextension=".pdf",
+        filetypes=[("PDF Files", "*.pdf")],
+        title="Salvar Relatório como"
+    )
+
+    if not arquivo:  # Se o usuário cancelar
+        return
+    
+    #incialização do pdf
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    #Titulo do relatório
+    pdf.set_font("Arial", size=16, style="B")
+    pdf.cell(200, 10, txt=titulo, ln=True, align="C")
+
+    #Espaço
+    pdf.ln(10)
+
+    # Cabeçalhos do Relatório
+    pdf.set_font("Arial", style="B", size=12)
+    pdf.cell(30, 10, "ID Venda", border=1)
+    pdf.cell(40, 10, "Produto", border=1)
+    pdf.cell(30, 10, "Quantidade", border=1)
+    pdf.cell(30, 10, "Preço Unitário", border=1)
+    pdf.cell(30, 10, "Total", border=1)
+    pdf.cell(30, 10, "Pagamento", border=1)
+    pdf.ln()
+
+    # Dados do Relatório
+    pdf.set_font("Arial", size=12)
+    for venda in relatorio:
+        venda_id, total, metodo_pagamento, data_venda, nome_produto, quantidade, preco_unitario = venda
+        pdf.cell(30, 10, str(venda_id), border=1)
+        pdf.cell(40, 10, nome_produto, border=1)
+        pdf.cell(30, 10, str(quantidade), border=1)
+        pdf.cell(30, 10, f"€{preco_unitario:.2f}", border=1)
+        pdf.cell(30, 10, f"€{quantidade * preco_unitario:.2f}", border=1)
+        pdf.cell(30, 10, metodo_pagamento, border=1)
+        pdf.ln()
+
+        #Total da Geral
+        pdf.ln(10)
+        total_geral = sum(venda[5] * venda[6] for venda in relatorio)
+        pdf.cell(200, 10, txt=f"Total Geral: €{total_geral:.2f}", ln=True, align="R")
+
+        # salva o arquivo PDF
+        pdf.output("relatorio_vendas.pdf")
+        messagebox.showinfo("Sucesso", "Relatório exportado com sucesso!")
+
+        #exportar o relatório
+        exportar_relatorio_pdf(relatorio_diario, "Relatório de Vendas")
+
+
+
+def relatorio_diario():
+    """
+    Retorna um relatório com todas as vendas realizadas no dia atual,
+    incluindo tipo de pagamento.
+    """
+    try:
+        with sqlite3.connect("agapeshop.db") as conn:
+            cursor = conn.cursor()
+            # Consulta ajustada para incluir o tipo de pagamento
+            query = '''
+                SELECT v.venda_id, v.total, tp.metodo_pagamento, v.data_venda,
+                       p.nome_produto, iv.quantidade, iv.preco_unitario
+                FROM vendas v
+                JOIN itens_venda iv ON v.venda_id = iv.venda_id
+                JOIN produtos p ON iv.produto_id = p.produto_id
+                JOIN tipo_pagamento tp ON v.pagamento_id = tp.pagamento_id
+                WHERE DATE(v.data_venda) = DATE('now')
+                ORDER BY v.data_venda DESC
+            '''
+            cursor.execute(query)
+            return cursor.fetchall()
+    except sqlite3.Error as e:
+        print(f"Erro ao gerar relatório diário: {e}")
+        return []
+
+
+def consultar_inventario():
+    try:
+        with sqlite3.connect("agapeshop.db") as conn:
+            cursor = conn.cursor()
+            cursor.execute(''' 
+                                SELECT inventario_id, nome_produto, quantidade, tipo_movimentacao, data_movimentacao, observacao 
+                                FROM inventario 
+                                JOIN produtos  ON produto_id = produto_id
+                                ORDER BY data_movimentacao DESC ''')
+            
+            resultados = cursor.fetchall()
+
+            if not resultados:
+                messagebox.showinfo("Inventário", "Nenhuma movimentação no inventário.")
+                return
+            
+            return resultados
+
+    except sqlite3.Error as e:
+        messagebox.showerror(f"Erro ao consultar inventário:{e}")
+                            
+
+
+def exportar_inventario_excel():
+    inventario = consultar_inventario()
+
+    if not inventario:
+        messagebox.showerror("Erro", "Nenhuma movimentação no inventário para exportar.")
+        return
+
+    # Escolher local para salvar
+    arquivo = filedialog.asksaveasfilename(
+        defaultextension=".xlsx",
+        filetypes=[("Excel Files", "*.xlsx")],
+        title="Salvar Inventário como"
+    )
+
+    if not arquivo:
+        return
+
+    # Criar planilha Excel
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Inventário"
+
+    # Cabeçalhos
+    headers = ["ID Inventário", "Produto", "Quantidade", "Tipo Movimentação", "Data", "Observação"]
+    ws.append(headers)
+
+    # Dados do inventário
+    for row in inventario:
+        ws.append(row)
+
+    # Salvar arquivo
+    try:
+        wb.save(arquivo)
+        messagebox.showinfo("Sucesso", f"Inventário exportado para {arquivo}")
+    except Exception as e:
+        messagebox.showerror("Erro", f"Erro ao salvar o arquivo: {e}")
