@@ -75,7 +75,7 @@ def register_window():
     password_entry = CTk.CTkEntry(window, show="*", width=300)
     password_entry.pack(pady=10)
 
-    CTk.CTkButton(window, text="Registrar", width=300, command=save_user).pack(pady=20)
+    CTk.CTkButton(window, text="Registrar", width=300, command=save_user).pack(pady=10)
     CTk.CTkButton(window, text="Voltar", width=300, command=lambda: [window.destroy(), login_window()]).pack(pady=10)
 
     
@@ -105,11 +105,11 @@ def menu_principal(username):
     CTk.CTkButton(menu, text="Adicionar Produto", width=300, command=open_add_produto).pack(pady=10)
     CTk.CTkButton(menu, text="Alterar Produto", width=300, command=update_produto).pack(pady=10)
     CTk.CTkButton(menu, text="Remover Produto", width=300, command=lambda: [menu.destroy(), remover_produto()]).pack(pady=10)
-    CTk.CTkButton(menu, text="Vendas", width=300,command=janela_vendas).pack(pady=10)
     #CTk.CTkButton(menu, text="Exportar Relatório", width=300,command=lambda: exportar_relatorio_pdf(relatorio_diario, "Relatorio Diario de Vendas")).pack(pady=10)
     CTk.CTkButton(menu, text="Estoque por Data", width=300,command=lambda: mostrar_estoque_por_data()).pack(pady=10)
     CTk.CTkButton(menu, text="Exportar Inventario", width=300,command=lambda: exportar_inventario_por_data()).pack(pady=10)
-    CTk.CTkButton(menu, text="Sair", width=300, command=menu.destroy).pack(pady=20)
+    CTk.CTkButton(menu, text="Vendas", width=300,command=janela_vendas).pack(pady=35)
+    CTk.CTkButton(menu, text="Sair", width=300, command=menu.destroy).pack(pady=25)
 
     menu.mainloop()
 
@@ -449,7 +449,7 @@ def mostrar_estoque_por_data():
 
     window = CTk.CTk()
     window.title("Consultar Estoque por Data")
-    window.geometry("700x600")
+    window.geometry("800x700")
 
     CTk.CTkLabel(window, text="Consultar Estoque por Data", font=("Arial", 16, "bold")).pack(pady=10)
     CTk.CTkLabel(window, text="Data (YYYY-MM-DD):").pack(pady=5)
@@ -513,7 +513,7 @@ def exportar_inventario_por_data():
     # Janela para selecionar data
     window = CTk.CTk()
     window.title("Exportar Inventário por Data")
-    window.geometry("400x200")
+    window.geometry("400x300")
 
     CTk.CTkLabel(window, text="Exportar Inventário por Data", font=("Arial", 16, "bold")).pack(pady=10)
     CTk.CTkLabel(window, text="Data (YYYY-MM-DD):").pack(pady=5)
