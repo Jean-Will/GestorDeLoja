@@ -1,7 +1,8 @@
 import customtkinter as CTk
-from Funcoes.functions import validar_usuario , registrar_usuario , mostrarProdutos,inserirProduto, exportar_relatorio_pdf, relatorio_diario, consultar_inventario, exportar_inventario_excel
+from Funcoes.functions import validar_usuario , registrar_usuario , mostrarProdutos,inserirProduto,  consultar_inventario, update, consultar_estoque_por_data
 import sqlite3
-from tkinter import messagebox
+from openpyxl import Workbook
+from tkinter import filedialog, messagebox
 
 
 
@@ -102,11 +103,12 @@ def menu_principal(username):
     CTk.CTkLabel(menu, text=f"Bem-vindo, {username}!", font=("Arial", 20, "bold")).pack(pady=20)
     CTk.CTkButton(menu, text="Consultar Estoque", width=300, command=open_consulta_estoque).pack(pady=10)
     CTk.CTkButton(menu, text="Adicionar Produto", width=300, command=open_add_produto).pack(pady=10)
+    CTk.CTkButton(menu, text="Alterar Produto", width=300, command=update_produto).pack(pady=10)
     CTk.CTkButton(menu, text="Remover Produto", width=300, command=lambda: [menu.destroy(), remover_produto()]).pack(pady=10)
     CTk.CTkButton(menu, text="Vendas", width=300,command=janela_vendas).pack(pady=10)
-    CTk.CTkButton(menu, text="Exportar Relatório", width=300,command=lambda: exportar_relatorio_pdf(relatorio_diario, "Relatorio Diario de Vendas")).pack(pady=10)
-    CTk.CTkButton(menu, text="Mostrar Inventario", width=300,command=lambda: mostrar_inventario()).pack(pady=10)
-    CTk.CTkButton(menu, text="Exportar Inventario", width=300,command=lambda: exportar_inventario_excel()).pack(pady=10)
+    #CTk.CTkButton(menu, text="Exportar Relatório", width=300,command=lambda: exportar_relatorio_pdf(relatorio_diario, "Relatorio Diario de Vendas")).pack(pady=10)
+    CTk.CTkButton(menu, text="Estoque por Data", width=300,command=lambda: mostrar_estoque_por_data()).pack(pady=10)
+    CTk.CTkButton(menu, text="Exportar Inventario", width=300,command=lambda: exportar_inventario_por_data()).pack(pady=10)
     CTk.CTkButton(menu, text="Sair", width=300, command=menu.destroy).pack(pady=20)
 
     menu.mainloop()
@@ -375,4 +377,173 @@ def mostrar_inventario():
         window.mainloop()
 
     except Exception as e:
-        messagebox.showerror("Erro",f"Erro ao carregar o inventário:{e}     ")
+        messagebox.showerror("Erro",f"Erro ao carregar o inventário:{e}")
+
+
+def update_produto():
+    try:
+        window = CTk.CTk()
+        window.title("Atualizar Produto")
+        window.geometry("700x600")
+
+        # Campo de entrada para o ID do produto
+        CTk.CTkLabel(window, text="ID do Produto").pack(pady=10)
+        produto_id_entry = CTk.CTkEntry(window, width=300)
+        produto_id_entry.pack(pady=10)
+
+        # Campo de entrada para o novo nome
+        CTk.CTkLabel(window, text="Novo Nome").pack(pady=10)
+        novo_nome_entry = CTk.CTkEntry(window, width=300)
+        novo_nome_entry.pack(pady=10)
+
+        # Campo de entrada para o novo preço
+        CTk.CTkLabel(window, text="Novo Preço").pack(pady=10)
+        novo_preco_entry = CTk.CTkEntry(window, width=300)
+        novo_preco_entry.pack(pady=10)
+
+        # Campo de entrada para a nova quantidade em estoque
+        CTk.CTkLabel(window, text="Nova Quantidade").pack(pady=10)
+        nova_quantidade_entry = CTk.CTkEntry(window, width=300)
+        nova_quantidade_entry.pack(pady=10)
+
+        # Botão para atualizar o produto
+        CTk.CTkButton(
+            window,
+            text="Atualizar Produto",
+            command=lambda: update(
+                produto_id_entry.get(),
+                novo_nome_entry.get(),
+                novo_preco_entry.get(),
+                nova_quantidade_entry.get(),
+                window
+            ),
+        ).pack(pady=10)
+
+        window.mainloop()
+        
+    except Exception as e:
+        messagebox.showerror("Erro", f"Erro ao abrir a janela: {e}")
+
+def mostrar_estoque_por_data():
+    def buscar():
+        data_limite = data_entry.get()
+        if not data_limite:
+            messagebox.showerror("Erro", "Por favor, insira uma data válida.")
+            return
+
+        estoque = consultar_estoque_por_data(data_limite)
+        if not estoque:
+            messagebox.showinfo("Estoque", "Nenhum registro encontrado para a data fornecida.")
+            return
+
+        for widget in frame.winfo_children():
+            widget.destroy()
+
+        for item in estoque:
+            produto_id, nome, descricao, preco, estoque_atual = item
+            CTk.CTkLabel(
+                frame, 
+                text=f"ID: {produto_id} | Nome: {nome} | Estoque: {estoque_atual} | Preço: €{preco:.2f}",
+                font=("Arial", 12)
+            ).pack(pady=5)
+
+    window = CTk.CTk()
+    window.title("Consultar Estoque por Data")
+    window.geometry("700x600")
+
+    CTk.CTkLabel(window, text="Consultar Estoque por Data", font=("Arial", 16, "bold")).pack(pady=10)
+    CTk.CTkLabel(window, text="Data (YYYY-MM-DD):").pack(pady=5)
+    data_entry = CTk.CTkEntry(window, width=300)
+    data_entry.pack(pady=5)
+
+    CTk.CTkButton(window, text="Buscar", command=buscar).pack(pady=10)
+    
+    frame = CTk.CTkScrollableFrame(window, width=650, height=400)
+    frame.pack(pady=20)
+
+    CTk.CTkButton(window, text="Fechar", command=window.destroy).pack(pady=10)
+
+    window.mainloop()
+    
+
+
+def exportar_inventario_por_data():
+    def buscar():
+        data_limite = data_entry.get()
+        if not data_limite:
+            messagebox.showerror("Erro", "Por favor, insira uma data válida.")
+            return
+
+        # Consulta o inventário por data
+        inventario = consultar_estoque_por_data(data_limite)
+        if not inventario:
+            messagebox.showinfo("Inventário", "Nenhum registro encontrado para a data fornecida.")
+            return
+
+        # Salvar arquivo Excel
+        salvar_arquivo_excel(inventario, data_limite)
+
+    def salvar_arquivo_excel(inventario, data_limite):
+        # Solicitar local para salvar o arquivo
+        arquivo = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel Files", "*.xlsx")],
+            title="Salvar Relatório como"
+        )
+        if not arquivo:
+            return  # Se o usuário cancelar, não faz nada
+
+        # Criar o arquivo Excel
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = f"Inventário {data_limite}"
+
+        # Cabeçalhos
+        sheet.append(["ID Produto", "Nome", "Descrição", "Preço (€)", "Estoque Atual"])
+
+        # Dados do inventário
+        for item in inventario:
+            produto_id, nome, descricao, preco, estoque_atual = item
+            sheet.append([produto_id, nome, descricao, f"{preco:.2f}", estoque_atual])
+
+        # Salvar o arquivo Excel
+        workbook.save(arquivo)
+        messagebox.showinfo("Sucesso", f"Relatório exportado como Excel em: {arquivo}")
+
+    # Janela para selecionar data
+    window = CTk.CTk()
+    window.title("Exportar Inventário por Data")
+    window.geometry("400x200")
+
+    CTk.CTkLabel(window, text="Exportar Inventário por Data", font=("Arial", 16, "bold")).pack(pady=10)
+    CTk.CTkLabel(window, text="Data (YYYY-MM-DD):").pack(pady=5)
+    data_entry = CTk.CTkEntry(window, width=300)
+    data_entry.pack(pady=10)
+
+    CTk.CTkButton(window, text="Exportar", command=buscar).pack(pady=10)
+    CTk.CTkButton(window, text="Cancelar", command=window.destroy).pack(pady=5)
+
+    window.mainloop()
+
+def consultar_estoque_por_data(data_limite):
+    try:
+        with sqlite3.connect("agapeshop.db") as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT 
+                    p.produto_id, 
+                    p.nome_produto, 
+                    p.descricao_produto, 
+                    p.preco, 
+                    COALESCE(SUM(CASE WHEN i.tipo_movimentacao = 'entrada' THEN i.quantidade
+                                     WHEN i.tipo_movimentacao = 'saida' THEN -i.quantidade
+                                     ELSE 0 END), 0) AS estoque_atual
+                FROM produtos p
+                LEFT JOIN inventario i ON p.produto_id = i.produto_id AND i.data_movimentacao <= ?
+                GROUP BY p.produto_id, p.nome_produto, p.descricao_produto, p.preco
+                ORDER BY p.produto_id;
+            ''', (data_limite,))
+            return cursor.fetchall()
+    except sqlite3.Error as e:
+        print(f"Erro ao consultar estoque: {e}")
+        return []

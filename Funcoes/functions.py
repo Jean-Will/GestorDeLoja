@@ -252,28 +252,37 @@ def inserirProduto(nome_produto, descricao_produto, preco, quantidade_estoque, c
         
 
 
-
-# Atualiza um produto NAO APLICADA ATE O MOMENTO
-def update():
+# Funcao para atualizar um produto
+def update(produto_id, novo_nome, novo_preco, nova_quantidade, window):
     try:
-        with sqlite3.connect('agapeshop.db') as conn:
+        with sqlite3.connect("agapeshop.db") as conn:
             cursor = conn.cursor()
-            cursor.execute(''' SELECT * FROM produtos ''')
-            produtos = cursor.fetchall()
-            
-            for produto in produtos:
-                print(f'ID: {produto[0]} | NOME: {produto[1]} | DESCRICAO: {produto[2]} | PRECO: {produto[3]} | ESTOQUE: {produto[4]} | CATEGORIA: {produto[5]}')
 
-            alteraProduto = input("Digite o novo nome do produto: ").strip().title()
-            novo_preco = float(input("Digite o novo preço: "))
-            novo_stock = int(input("Digite o novo estoque: "))
-            cursor.execute(''' 
-                UPDATE produtos SET preco = ?, stock = ? WHERE nome = ?
-            ''', (novo_preco, novo_stock, alteraProduto))
+            # Validar se o produto existe
+            cursor.execute("SELECT * FROM produtos WHERE produto_id = ?", (produto_id,))
+            produto = cursor.fetchone()
+
+            if not produto:
+                messagebox.showerror("Erro", f"Produto com ID {produto_id} não encontrado.")
+                return
+
+            # Atualizar os dados do produto
+            cursor.execute(
+                '''
+                UPDATE produtos
+                SET nome_produto = ?, preco = ?, quantidade_estoque = ?
+                WHERE produto_id = ?
+                ''',
+                (novo_nome, novo_preco, nova_quantidade, produto_id),
+            )
             conn.commit()
-            print(f"Produto '{alteraProduto}' alterado com sucesso!")
+            messagebox.showinfo("Sucesso", f"Produto com ID {produto_id} atualizado com sucesso!")
+            window.destroy()
+                
+
     except sqlite3.Error as e:
-        print(f"Erro ao alterar produto: {e}")
+        messagebox.showerror("Erro", f"Erro ao atualizar produto: {e}")
+
 
 
 
@@ -485,6 +494,7 @@ def consultar_inventario():
 
             if not resultados:
                 messagebox.showinfo("Inventário", "Nenhuma movimentação no inventário.")
+                
                 return
             
             return resultados
@@ -530,3 +540,28 @@ def exportar_inventario_excel():
         messagebox.showinfo("Sucesso", f"Inventário exportado para {arquivo}")
     except Exception as e:
         messagebox.showerror("Erro", f"Erro ao salvar o arquivo: {e}")
+
+
+
+def consultar_estoque_por_data(data_limite):
+    try:
+        with sqlite3.connect("agapeshop.db") as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT 
+                    p.produto_id, 
+                    p.nome_produto, 
+                    p.descricao_produto, 
+                    p.preco, 
+                    COALESCE(SUM(CASE WHEN i.tipo_movimentacao = 'entrada' THEN i.quantidade
+                                     WHEN i.tipo_movimentacao = 'saida' THEN -i.quantidade
+                                     ELSE 0 END), 0) AS estoque_atual
+                FROM produtos p
+                LEFT JOIN inventario i ON p.produto_id = i.produto_id AND i.data_movimentacao <= ?
+                GROUP BY p.produto_id, p.nome_produto, p.descricao_produto, p.preco
+                ORDER BY p.produto_id;
+            ''', (data_limite,))
+            return cursor.fetchall()
+    except sqlite3.Error as e:
+        print(f"Erro ao consultar estoque: {e}")
+        return []
