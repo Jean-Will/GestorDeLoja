@@ -54,6 +54,7 @@ def iniciaDB():
                     preco REAL NOT NULL CHECK(preco >= 0),
                     quantidade_estoque INTEGER NOT NULL CHECK(quantidade_estoque >= 0),
                     categoria_id INTEGER NOT NULL,
+                    data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (categoria_id) REFERENCES categoria(categoria_id)
                 ) 
             ''')
@@ -128,8 +129,6 @@ def iniciaDB():
         print(f"Erro ao criar banco de dados: {e}")
 
         
-
-
 
 
 
@@ -211,9 +210,6 @@ def cadastro():
     
 
 
-
-
-
 # Insere uma categoria ** e para selecionar a categoria e nao inserir pois ja deifini as categorias na criacao 
 def insertCategoria(categoria):
     try:
@@ -253,7 +249,7 @@ def inserirProduto(nome_produto, descricao_produto, preco, quantidade_estoque, c
 
 
 # Funcao para atualizar um produto
-def update(produto_id, novo_nome, novo_preco, nova_quantidade, window):
+def update(produto_id, novo_nome, novo_preco, nova_quantidade, janela):
     try:
         with sqlite3.connect("agapeshop.db") as conn:
             cursor = conn.cursor()
@@ -266,6 +262,10 @@ def update(produto_id, novo_nome, novo_preco, nova_quantidade, window):
                 messagebox.showerror("Erro", f"Produto com ID {produto_id} não encontrado.")
                 return
 
+            # Calcular a diferença na quantidade de estoque
+            estoque_atual = produto[4]  # Quantidade em estoque na tabela 'produtos'
+            diferenca = int(nova_quantidade) - estoque_atual
+
             # Atualizar os dados do produto
             cursor.execute(
                 '''
@@ -275,15 +275,23 @@ def update(produto_id, novo_nome, novo_preco, nova_quantidade, window):
                 ''',
                 (novo_nome, novo_preco, nova_quantidade, produto_id),
             )
+
+            # Registrar movimentação no inventário, se houver alteração na quantidade
+            if diferenca != 0:
+                tipo_movimentacao = "entrada" if diferenca > 0 else "saida"
+                registrar_movimentacao(
+                    produto_id=produto_id,
+                    quantidade=abs(diferenca),
+                    tipo_movimentacao=tipo_movimentacao,
+                    observacao="Alteração manual no estoque"
+                )
+
             conn.commit()
             messagebox.showinfo("Sucesso", f"Produto com ID {produto_id} atualizado com sucesso!")
-            window.destroy()
-                
+            janela.destroy()
 
     except sqlite3.Error as e:
         messagebox.showerror("Erro", f"Erro ao atualizar produto: {e}")
-
-
 
 
 
@@ -348,7 +356,6 @@ def delete():
         print(f"Erro ao deletar produto: {e}")
 
                     
-
 # Função para registrar um novo usuário
 def registrar_usuario(username, password):
     """
@@ -487,7 +494,7 @@ def consultar_inventario():
             cursor.execute(''' 
                                 SELECT inventario_id, nome_produto, quantidade, tipo_movimentacao, data_movimentacao, observacao 
                                 FROM inventario 
-                                JOIN produtos  ON produto_id = produto_id
+                                JOIN produtos p ON i.produto_id = p.produto_id
                                 ORDER BY data_movimentacao DESC ''')
             
             resultados = cursor.fetchall()
@@ -505,41 +512,61 @@ def consultar_inventario():
 
 
 def exportar_inventario_excel():
-    inventario = consultar_inventario()
-
-    if not inventario:
-        messagebox.showerror("Erro", "Nenhuma movimentação no inventário para exportar.")
-        return
-
-    # Escolher local para salvar
-    arquivo = filedialog.asksaveasfilename(
-        defaultextension=".xlsx",
-        filetypes=[("Excel Files", "*.xlsx")],
-        title="Salvar Inventário como"
-    )
-
-    if not arquivo:
-        return
-
-    # Criar planilha Excel
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Inventário"
-
-    # Cabeçalhos
-    headers = ["ID Inventário", "Produto", "Quantidade", "Tipo Movimentação", "Data", "Observação"]
-    ws.append(headers)
-
-    # Dados do inventário
-    for row in inventario:
-        ws.append(row)
-
-    # Salvar arquivo
     try:
-        wb.save(arquivo)
-        messagebox.showinfo("Sucesso", f"Inventário exportado para {arquivo}")
+        with sqlite3.connect("agapeshop.db") as conn:
+            cursor = conn.cursor()
+
+            # Consulta corrigida para obter o inventário
+            cursor.execute('''
+                SELECT 
+                    p.produto_id, 
+                    p.nome_produto, 
+                    p.descricao_produto, 
+                    p.preco, 
+                    COALESCE(SUM(CASE WHEN i.tipo_movimentacao = 'entrada' THEN i.quantidade 
+                                      WHEN i.tipo_movimentacao = 'saida' THEN -i.quantidade END), 0) AS estoque_atual
+                FROM produtos p
+                LEFT JOIN inventario i ON p.produto_id = i.produto_id
+                GROUP BY p.produto_id, p.nome_produto, p.descricao_produto, p.preco;
+            ''')
+
+            inventario = cursor.fetchall()
+
+        # Verificar se há dados
+        if not inventario:
+            messagebox.showinfo("Exportar Inventário", "Nenhum dado encontrado no inventário.")
+            return
+
+        # Escolher o arquivo para salvar
+        arquivo = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Arquivos Excel", "*.xlsx")],
+            title="Salvar Inventário"
+        )
+        if not arquivo:
+            return
+
+        # Criar o arquivo Excel
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "Inventário Atual"
+
+        # Cabeçalhos
+        sheet.append(["ID Produto", "Nome", "Descrição", "Preço (€)", "Estoque Atual"])
+
+        # Adicionar dados ao Excel
+        for row in inventario:
+            sheet.append(row)
+
+        workbook.save(arquivo)
+        messagebox.showinfo("Sucesso", f"Inventário exportado com sucesso para:\n{arquivo}")
+
+    except sqlite3.Error as e:
+        messagebox.showerror("Erro", f"Erro ao consultar o inventário: {e}")
+    except PermissionError:
+        messagebox.showerror("Erro", "Permissão negada. Feche o arquivo se ele estiver aberto e tente novamente.")
     except Exception as e:
-        messagebox.showerror("Erro", f"Erro ao salvar o arquivo: {e}")
+        messagebox.showerror("Erro", f"Erro ao exportar inventário: {e}")
 
 
 
@@ -547,21 +574,55 @@ def consultar_estoque_por_data(data_limite):
     try:
         with sqlite3.connect("agapeshop.db") as conn:
             cursor = conn.cursor()
+
             cursor.execute('''
                 SELECT 
                     p.produto_id, 
                     p.nome_produto, 
                     p.descricao_produto, 
                     p.preco, 
-                    COALESCE(SUM(CASE WHEN i.tipo_movimentacao = 'entrada' THEN i.quantidade
-                                     WHEN i.tipo_movimentacao = 'saida' THEN -i.quantidade
-                                     ELSE 0 END), 0) AS estoque_atual
+                    p.quantidade_estoque 
+                    + COALESCE(SUM(CASE 
+                        WHEN i.tipo_movimentacao = 'entrada' THEN i.quantidade
+                        WHEN i.tipo_movimentacao = 'saida' THEN -i.quantidade
+                        ELSE 0 END), 0) AS estoque_atual
                 FROM produtos p
-                LEFT JOIN inventario i ON p.produto_id = i.produto_id AND i.data_movimentacao <= ?
-                GROUP BY p.produto_id, p.nome_produto, p.descricao_produto, p.preco
+                LEFT JOIN inventario i 
+                    ON p.produto_id = i.produto_id 
+                    AND i.data_movimentacao <= ?
+                GROUP BY p.produto_id, p.nome_produto, p.descricao_produto, p.preco, p.quantidade_estoque
                 ORDER BY p.produto_id;
             ''', (data_limite,))
             return cursor.fetchall()
     except sqlite3.Error as e:
-        print(f"Erro ao consultar estoque: {e}")
+        print(f"Erro ao consultar estoque por data: {e}")
         return []
+
+
+
+def registrar_movimentacao(produto_id, quantidade, tipo_movimentacao, observacao=""):
+    """
+    Registra uma movimentação no inventário.
+    """
+    try:
+        if tipo_movimentacao not in ["entrada", "saida"]:
+            raise ValueError("O tipo de movimentação deve ser 'entrada' ou 'saida'.")
+
+        if quantidade <= 0:
+            raise ValueError("A quantidade deve ser maior que 0.")
+
+        with sqlite3.connect("agapeshop.db") as conn:
+            cursor = conn.cursor()
+
+            # SQL correto para registrar a movimentação
+            cursor.execute('''
+                INSERT INTO inventario (produto_id, quantidade, tipo_movimentacao, data_movimentacao, observacao)
+                VALUES (?, ?, ?, datetime('now'), ?)
+            ''', (produto_id, quantidade, tipo_movimentacao, observacao))
+            
+            conn.commit()
+            print("Movimentação registrada no inventário com sucesso.")
+    except sqlite3.Error as e:
+        print(f"Erro ao registrar movimentação no inventário: {e}")
+
+

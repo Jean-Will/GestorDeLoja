@@ -1,5 +1,5 @@
 import customtkinter as CTk
-from Funcoes.functions import validar_usuario , registrar_usuario , mostrarProdutos,inserirProduto,  consultar_inventario, update, consultar_estoque_por_data
+from Funcoes.functions import validar_usuario , registrar_usuario , mostrarProdutos,inserirProduto,  consultar_inventario, update, consultar_estoque_por_data , registrar_movimentacao
 import sqlite3
 from openpyxl import Workbook
 from tkinter import filedialog, messagebox
@@ -151,6 +151,27 @@ def adicionar_produto():
         categoria = int(categoria_entry.get())
 
         inserirProduto(nome, descricao, preco, quantidade, categoria)
+
+        # Obter o ID do produto recém-adicionado
+        try:
+            with sqlite3.connect("agapeshop.db") as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT produto_id FROM produtos WHERE nome_produto = ? ORDER BY produto_id DESC LIMIT 1", (nome,))
+                produto_id = cursor.fetchone()
+
+                if produto_id:
+                    produto_id = produto_id[0]
+                    # Registrar a movimentação no inventário
+                    registrar_movimentacao(
+                        produto_id=produto_id,
+                        quantidade=quantidade,
+                        tipo_movimentacao="entrada",
+                        observacao="Estoque inicial ao adicionar produto"
+                    )
+
+        except sqlite3.Error as e:
+            messagebox.showerror("Erro", f"Erro ao registrar no inventário: {e}")
+
         messagebox.showinfo("Sucesso", "Produto Adicionado!")
         window.destroy()
         menu_principal("Usuário")
@@ -185,6 +206,7 @@ def adicionar_produto():
     CTk.CTkButton(window, text="Cancelar", width=300, command=lambda: [window.destroy(), menu_principal("Usuário")]).pack(pady=10)
 
     window.mainloop()
+
 
 #deleta produto na base de dados
 def delete_product_from_db(produto_id):
@@ -284,36 +306,57 @@ def janela_vendas():
             messagebox.showerror("Erro", "O carrinho está vazio!")
             return
 
-        forma_pagamento = forma_pagamento_var.get()
+        forma_pagamento = forma_pagamento_var.get().strip()
+        print(f"Forma de pagamento selecionada: {forma_pagamento}")
 
         try:
             with sqlite3.connect("agapeshop.db") as conn:
                 cursor = conn.cursor()
 
-            # Obter o ID da forma de pagamento baseado no nome
-                cursor.execute("SELECT pagamento_id FROM tipo_pagamento WHERE metodo_pagamento = ?", (forma_pagamento,))
+            # Get the payment method ID
+                cursor.execute(
+                        "SELECT pagamento_id FROM tipo_pagamento WHERE LOWER(TRIM(metodo_pagamento)) = LOWER(TRIM(?))",
+                (forma_pagamento,)
+                                    )
+
                 pagamento_id = cursor.fetchone()
+                print(f"Resultado do banco de dados: {pagamento_id}")
 
                 if not pagamento_id:
                     messagebox.showerror("Erro", "Forma de pagamento inválida!")
                     return
 
-                pagamento_id = pagamento_id[0]  # Obtem o ID real da tupla retornada
+                pagamento_id = pagamento_id[0]  # Extract the payment method ID
 
-            # Atualizar o estoque para cada produto no carrinho
-                for item in carrinho:
-                    cursor.execute("UPDATE produtos SET quantidade_estoque = quantidade_estoque - ? WHERE produto_id = ?", (item["quantidade"], item["id"]))
-
-            # Inserir a venda na tabela de vendas
+            # Calculate the total and insert the sale record
                 total = sum(item["quantidade"] * item["preco"] for item in carrinho)
                 cursor.execute("INSERT INTO vendas (total, pagamento_id) VALUES (?, ?)", (total, pagamento_id))
+                venda_id = cursor.lastrowid  # Get the ID of the inserted sale
 
-                conn.commit()
+            # Update stock and register in inventory for each product in the cart
+                for item in carrinho:
+                # Update the product stock
+                    cursor.execute(
+                        "UPDATE produtos SET quantidade_estoque = quantidade_estoque - ? WHERE produto_id = ?",
+                        (item["quantidade"], item["id"])
+                    )
+
+                # Register the movement in the inventory
+                    registrar_movimentacao(
+                        produto_id=item["id"],
+                        quantidade=item["quantidade"],
+                        tipo_movimentacao="saida",
+                        observacao=f"Venda ID {venda_id}"
+                    )
+
+                conn.commit()  # Commit the transaction
                 messagebox.showinfo("Sucesso", "Venda finalizada com sucesso!")
                 carrinho.clear()
                 atualizar_carrinho()
+
         except sqlite3.Error as e:
             messagebox.showerror("Erro", f"Erro ao finalizar venda: {e}")
+
 
 
     # Janela principal
@@ -424,6 +467,7 @@ def update_produto():
     except Exception as e:
         messagebox.showerror("Erro", f"Erro ao abrir a janela: {e}")
 
+
 def mostrar_estoque_por_data():
     def buscar():
         data_limite = data_entry.get()
@@ -431,7 +475,8 @@ def mostrar_estoque_por_data():
             messagebox.showerror("Erro", "Por favor, insira uma data válida.")
             return
 
-        estoque = consultar_estoque_por_data(data_limite)
+        estoque = consultar_estoque_por_data(data_limite)  #$ ATUALMENTE USANDO ESSE POREM NAO APARECE A QUANTIDADE DO ESTOQUE
+        #estoque = consultar_estoque() #TESTANDO PARA VER SE APARECE QUANTIDADE DO ESTOQUE mostra o estoque atual
         if not estoque:
             messagebox.showinfo("Estoque", "Nenhum registro encontrado para a data fornecida.")
             return
@@ -439,20 +484,24 @@ def mostrar_estoque_por_data():
         for widget in frame.winfo_children():
             widget.destroy()
 
+
+
         for item in estoque:
-            produto_id, nome, descricao, preco, estoque_atual = item
+            produto_id, nome, descricao, preco, quantidade = item
             CTk.CTkLabel(
                 frame, 
-                text=f"ID: {produto_id} | Nome: {nome} | Estoque: {estoque_atual} | Preço: €{preco:.2f}",
+                text=f"ID: {produto_id} | Nome: {nome} | Descrição: {descricao}| Estoque: {quantidade} | Preço: €{preco:.2f} ",
                 font=("Arial", 12)
-            ).pack(pady=5)
+            ).pack(pady=5) 
+
+            
 
     window = CTk.CTk()
     window.title("Consultar Estoque por Data")
     window.geometry("800x700")
 
     CTk.CTkLabel(window, text="Consultar Estoque por Data", font=("Arial", 16, "bold")).pack(pady=10)
-    CTk.CTkLabel(window, text="Data (YYYY-MM-DD):").pack(pady=5)
+    CTk.CTkLabel(window, text="Data (YYYY-M-DD):").pack(pady=5)
     data_entry = CTk.CTkEntry(window, width=300)
     data_entry.pack(pady=5)
 
@@ -465,7 +514,6 @@ def mostrar_estoque_por_data():
 
     window.mainloop()
     
-
 
 def exportar_inventario_por_data():
     def buscar():
@@ -516,7 +564,7 @@ def exportar_inventario_por_data():
     window.geometry("400x300")
 
     CTk.CTkLabel(window, text="Exportar Inventário por Data", font=("Arial", 16, "bold")).pack(pady=10)
-    CTk.CTkLabel(window, text="Data (YYYY-MM-DD):").pack(pady=5)
+    CTk.CTkLabel(window, text="Data (YYYY-M-DD):").pack(pady=5)
     data_entry = CTk.CTkEntry(window, width=300)
     data_entry.pack(pady=10)
 
@@ -524,6 +572,7 @@ def exportar_inventario_por_data():
     CTk.CTkButton(window, text="Cancelar", command=window.destroy).pack(pady=5)
 
     window.mainloop()
+
 
 def consultar_estoque_por_data(data_limite):
     try:

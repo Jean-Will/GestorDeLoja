@@ -1,3 +1,0 @@
-1 . Finalizar venda com o pagamento por mbway da erro de Forma de pagamento invalida.
-2. Constultar(CONSULTAR FUNCIONA) e exportar relatorios de inventario nao esta funcionando, ( isso e importante para o cliente)
-3. REgistra o tipo de  movimentacao para o inventario ( usara inserir produtos para dar entrada e vendas para saida )
